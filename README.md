@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/img/logo-removebg.png" width="200" alt="Project Logo">
+  <img src="public/img/logo-removebg.png" width="400" alt="Project Logo">
   <h1 style="font-size: 2.5em; margin-top: 20px;">
     📡 WebRTC Online Meeting Platform
   </h1>
