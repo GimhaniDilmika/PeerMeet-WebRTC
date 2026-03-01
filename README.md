@@ -21,7 +21,7 @@ A real-time video chat application using WebRTC, Node.js, and Socket.io for sign
 ---
 
 ## 🖥️ Screenshots
-<img src="https://github.com/user-attachments/assets/710464dd-88c6-414a-902a-beaa62caba0b"> 
+<img src="https://github.com/GimhaniDilmika/PeerMeet-WebRTC/blob/e2432f8cf81215845cb03e04aef89340df047112/photo.png"> 
 
 ---
 
