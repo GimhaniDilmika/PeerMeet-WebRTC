@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="./img/logo-removebg.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeerMeet | Video Conferencing</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <img class="logo1" src="./img/logo-removebg.png" alt="PeerMeet Logo">
+        <p>PeerMeet</p>
+      </div>
+
+      <div class="room-info">
+        <div class="room-id">
+          <i class="fas fa-door-open"></i>
+          <span id="room-display">Not connected</span>
+        </div>
+        <div class="participant-count">
+          <i class="fas fa-users"></i>
+          <span id="participant-count">0</span>
+        </div>
+      </div>
+
+      <div class="user-profile">
+        <div class="avatar"><i class="fas fa-user"></i></div>
+        <div class="user-info">
+          <span id="username-display">Guest</span>
+          <span id="user-role">Participant</span>
+        </div>
+      </div>
+
+      <div class="sidebar-menu">
+        <button class="menu-item active" id="chat-toggle">
+          <i class="fas fa-comment-dots"></i>
+          <span>Chat</span>
+          <!-- unread badge -->
+          <span class="badge" id="chat-badge" style="display:none;">0</span>
+        </button>
+
+        <button class="menu-item" id="participants-toggle">
+          <i class="fas fa-users"></i>
+          <span>Participants</span>
+        </button>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="tiny-note">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Secure WebRTC</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Join Section -->
+      <section class="join-section" id="join-section">
+        <div class="join-container">
+          <h1>Start or join a meeting</h1>
+
+          <div class="input-group">
+            <input type="text" id="room" placeholder="Enter meeting ID">
+            <button onclick="joinRoom()" id="joinButton">
+              <i class="fas fa-video"></i> Join
+            </button>
+          </div>
+
+          <div class="divider"><span>OR</span></div>
+
+          <button class="new-meeting-btn" onclick="createNewMeeting()">
+            <i class="fas fa-plus"></i> New Meeting
+          </button>
+
+          <div class="hint">
+            Tip: Share the meeting ID with your friends.
+          </div>
+
+          <div class="invite-row">
+            <button class="invite-btn" onclick="copyInviteLink()">
+              <i class="fas fa-link"></i> Copy Invite
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Video Grid -->
+      <section class="video-grid" id="videos">
+        <div class="video-container featured">
+          <video id="localVideo" autoplay playsinline muted></video>
+
+          <div class="video-overlay">
+            <div class="username-label">You</div>
+            <div class="video-status">
+              <span class="mic-status"><i class="fas fa-microphone"></i></span>
+              <span class="cam-status"><i class="fas fa-video"></i></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Controls -->
+      <div class="controls" id="controls" style="display:none;">
+        <button onclick="toggleMic()" id="micButton" class="control-btn mic-btn active">
+          <i class="fas fa-microphone"></i>
+          <span class="tooltip">Mic</span>
+        </button>
+
+        <button onclick="toggleCamera()" id="cameraButton" class="control-btn cam-btn active">
+          <i class="fas fa-video"></i>
+          <span class="tooltip">Camera</span>
+        </button>
+
+        <button onclick="toggleScreenShare()" id="screenShareButton" class="control-btn screen-btn">
+          <i class="fas fa-desktop"></i>
+          <span class="tooltip">Share Screen</span>
+        </button>
+
+        <button onclick="endCall()" id="leaveButton" class="control-btn leave-btn">
+          <i class="fas fa-phone-slash"></i>
+          <span class="tooltip">Leave</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Chat Panel -->
+    <section class="right-panel chat-panel" id="chat" style="display:none;">
+      <div class="panel-header">
+        <h3>Chat</h3>
+        <button class="panel-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="panel-content">
+        <div id="chatbox"></div>
+        <div id="typing-indicator" class="typing-indicator"></div>
+      </div>
+
+      <div class="panel-footer">
+        <div class="message-input">
+          <button class="emoji-btn" id="emojiButton" type="button" title="Emoji">
+            <i class="fa-regular fa-face-smile"></i>
+          </button>
+
+          <input type="text" id="messageInput" placeholder="Type a message...">
+
+          <button onclick="sendMessage()" id="sendButton">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+
+        <div class="emoji-picker" id="emojiPicker">
+          <div class="emoji-grid" id="emojiGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Participants Panel -->
+    <section class="right-panel participants-panel" id="participants">
+      <div class="panel-header">
+        <h3>Participants</h3>
+        <button class="panel-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="panel-content">
+        <div class="participants-list" id="participants-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

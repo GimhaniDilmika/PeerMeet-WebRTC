@@ -1,0 +1,19 @@
+{
+    "name": "webrtc-chat",
+    "version": "1.0.0",
+    "description": "WebRTC Video Chat Application",
+    "main": "server/server.js",
+    "scripts": {
+        "start": "node server/server.js",
+        "dev": "nodemon server/server.js"
+    },
+    "dependencies": {
+        "express": "^4.22.1",
+        "multer": "^2.1.0",
+        "socket.io": "^4.8.3",
+        "webrtc-chat": "file:"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    }
+}
