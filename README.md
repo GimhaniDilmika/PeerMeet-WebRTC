@@ -42,8 +42,8 @@ Follow these steps to install and set up the project:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/SatharakaNilmantha/ProConnect_WebRTC-online-meeting-platform.git
-   cd ProConnect_WebRTC-online-meeting-platform
+   git clone https://github.com/GimhaniDilmika/PeerMeet-WebRTC.git
+   cd PeerMeet-WebRTC-online-meeting-platform
    ```
 
 2. **Install dependencies**
@@ -100,7 +100,7 @@ For production, you'll need HTTPS (WebRTC requires secure contexts):
 ## 🧩 Project Structure
 
 ```
-ProConnect_WebRTC-online-meeting-platform/
+PeerMeet-WebRTC/
 ├── node_modules/ # All npm dependencies
 ├── public/ # Static assets
 │ ├── img/ # Image resources
@@ -138,23 +138,12 @@ Contributions are welcome! Please follow these steps:
 ---
 
 
-## 📧 Contact
+📬 Contact
+<p align="center"> <a href="mailto:gimhanidilmika1@gmail.com"> <img src="https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white"/> </a> <a href="https://github.com/GimhaniDilmika"> <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/> </a> </p>
 
-<p align="left">
-  <a href="mailto:satharakanilmantha1@gmail.com">
-    <img src="https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white" alt="Gmail">
-  </a>
-  <a href="https://www.linkedin.com/in/your-linkedin-profile">
-    <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn">
-  </a>
-  <a href="https://github.com/SatharakaNilmantha">
-    <img src="https://img.shields.io/badge/GitHub-Project-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Project">
-  </a>
-</p>
+📫 Email: gimhanidilmika1@gmail.com
 
-**Satharaka Nilmantha**  
-📫 Reach me at: satharakanilmantha1@gmail.com  
-🔗 Connect on [LinkedIn](https://www.linkedin.com/in/satharaka-nilmantha-aa7b96297/)
+
 
 ---
 
