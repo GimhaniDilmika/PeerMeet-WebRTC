@@ -101,6 +101,55 @@ io.on("connection", (socket) => {
     });
   });
 
+  // ✅ raise hand
+  socket.on("raise-hand", () => {
+    if (!currentRoom) return;
+    const user = rooms[currentRoom]?.find((u) => u.id === socket.id);
+    const username = user ? user.username : "Guest";
+    socket.to(currentRoom).emit("user-raised-hand", { userId: socket.id, username });
+  });
+
+  // ✅ host: mute all (broadcast request to all non-host participants)
+  socket.on("mute-all", () => {
+    if (!currentRoom) return;
+    const isHost = rooms[currentRoom] && rooms[currentRoom][0]?.id === socket.id;
+    if (!isHost) return;
+    socket.to(currentRoom).emit("mute-requested");
+  });
+
+  // ✅ host: kick user
+  socket.on("kick-user", (targetId) => {
+    if (!currentRoom) return;
+    const isHost = rooms[currentRoom] && rooms[currentRoom][0]?.id === socket.id;
+    if (!isHost) return;
+    io.to(targetId).emit("kicked");
+  });
+
+  // ✅ host: end meeting for all
+  socket.on("end-meeting", () => {
+    if (!currentRoom) return;
+    const isHost = rooms[currentRoom] && rooms[currentRoom][0]?.id === socket.id;
+    if (!isHost) return;
+    io.to(currentRoom).emit("meeting-ended");
+  });
+
+  // ✅ file message
+  socket.on("send-file", (payload) => {
+    if (!currentRoom) return;
+    const user = rooms[currentRoom]?.find((u) => u.id === socket.id);
+    const username = user ? user.username : "Guest";
+    const isHost = rooms[currentRoom] && rooms[currentRoom][0]?.id === socket.id;
+    const displayName = username + (isHost ? " (Host)" : "");
+    socket.to(currentRoom).emit("receive-file", {
+      id: payload.id,
+      user: displayName,
+      senderId: socket.id,
+      fileName: payload.fileName,
+      fileType: payload.fileType,
+      fileData: payload.fileData,
+    });
+  });
+
   // WebRTC signals
   socket.on("offer", (offer, targetId) => socket.to(targetId).emit("offer", offer, socket.id));
   socket.on("answer", (answer, targetId) => socket.to(targetId).emit("answer", answer, socket.id));

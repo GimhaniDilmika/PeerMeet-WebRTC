@@ -124,10 +124,25 @@
           <span class="tooltip">Share Screen</span>
         </button>
 
+        <button onclick="toggleRecording()" id="recordButton" class="control-btn record-btn">
+          <i class="fas fa-circle"></i>
+          <span class="tooltip">Record</span>
+        </button>
+
+        <button onclick="raiseHand()" id="raiseHandButton" class="control-btn hand-btn">
+          <i class="fas fa-hand-paper"></i>
+          <span class="tooltip">Raise Hand</span>
+        </button>
+
         <button onclick="endCall()" id="leaveButton" class="control-btn leave-btn">
           <i class="fas fa-phone-slash"></i>
           <span class="tooltip">Leave</span>
         </button>
+      </div>
+
+      <!-- Recording indicator -->
+      <div id="recording-indicator" style="display:none;">
+        <span class="rec-dot"></span> REC
       </div>
     </main>
 
@@ -153,6 +168,11 @@
 
           <input type="text" id="messageInput" placeholder="Type a message...">
 
+          <label class="file-upload-btn" title="Send file">
+            <i class="fas fa-paperclip"></i>
+            <input type="file" id="fileInput" style="display:none;" onchange="sendFile(this)">
+          </label>
+
           <button onclick="sendMessage()" id="sendButton">
             <i class="fas fa-paper-plane"></i>
           </button>
@@ -170,6 +190,16 @@
         <h3>Participants</h3>
         <button class="panel-close">
           <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Host controls (only shown if isHost) -->
+      <div class="host-controls" id="host-controls" style="display:none;">
+        <button class="host-btn" onclick="muteAll()">
+          <i class="fas fa-microphone-slash"></i> Mute All
+        </button>
+        <button class="host-btn danger" onclick="endMeetingForAll()">
+          <i class="fas fa-door-open"></i> End Meeting
         </button>
       </div>
 
