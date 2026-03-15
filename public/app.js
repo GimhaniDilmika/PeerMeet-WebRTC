@@ -1,7 +1,9 @@
-const socket = io({
+// ✅ Auto-detect server URL — works on localhost AND any deployed domain
+const SERVER_URL = window.location.origin;
+const socket = io(SERVER_URL, {
   transports: ["websocket", "polling"],
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 10,
   reconnectionDelay: 1000,
 });
 
@@ -13,6 +15,14 @@ let isHost = false;
 let peerUsernames = {};
 let screenStream = null;
 let isScreenSharing = false;
+
+// Recording state
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
+// Raise hand state
+let handRaised = false;
 
 let unreadCount = 0;
 
@@ -35,10 +45,27 @@ const emojiButton = document.getElementById("emojiButton");
 const emojiPicker = document.getElementById("emojiPicker");
 const emojiGrid = document.getElementById("emojiGrid");
 
+// ✅ STUN + TURN servers — required for cross-network/cross-device WebRTC
 const iceServers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
   ],
 };
 
@@ -104,7 +131,7 @@ function initUI() {
     typingTimeout = setTimeout(() => socket.emit("typing", false), 700);
   });
 
-  // emoji picker
+  // emoji picker for typing message only
   buildEmojiPicker();
   emojiButton.addEventListener("click", () => emojiPicker.classList.toggle("active"));
   document.addEventListener("click", (e) => {
@@ -136,10 +163,12 @@ function updateBadge() {
     badgeEl.style.display = "none";
   }
 }
+
 function resetUnread() {
   unreadCount = 0;
   updateBadge();
 }
+
 function addUnread() {
   unreadCount += 1;
   updateBadge();
@@ -159,7 +188,11 @@ async function joinRoom() {
       document.getElementById(`container-${userId}`)?.remove();
     });
 
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
     localVideo.srcObject = localStream;
 
     document.getElementById("room-display").textContent = roomId;
@@ -179,10 +212,14 @@ async function joinRoom() {
 function createPeerConnection(userId) {
   const pc = new RTCPeerConnection(iceServers);
 
-  localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+  localStream.getTracks().forEach((track) => {
+    pc.addTrack(track, localStream);
+  });
 
-  pc.onicecandidate = (e) => {
-    if (e.candidate) socket.emit("ice-candidate", e.candidate, userId);
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("ice-candidate", event.candidate, userId);
+    }
   };
 
   pc.ontrack = (event) => {
@@ -192,19 +229,19 @@ function createPeerConnection(userId) {
     videoContainer.id = `container-${userId}`;
     videoContainer.className = "video-container";
 
-    const v = document.createElement("video");
-    v.autoplay = true;
-    v.playsInline = true;
+    const video = document.createElement("video");
+    video.autoplay = true;
+    video.playsInline = true;
 
     const name = document.createElement("div");
     name.className = "username-label";
     name.textContent = peerUsernames[userId] || "User";
 
-    videoContainer.appendChild(v);
+    videoContainer.appendChild(video);
     videoContainer.appendChild(name);
     document.getElementById("videos").appendChild(videoContainer);
 
-    v.srcObject = event.streams[0];
+    video.srcObject = event.streams[0];
   };
 
   peerConnections[userId] = pc;
@@ -214,29 +251,41 @@ function createPeerConnection(userId) {
 
 /* Controls */
 function toggleMic() {
-  const t = localStream.getAudioTracks()[0];
-  if (!t) return;
-  t.enabled = !t.enabled;
+  const track = localStream.getAudioTracks()[0];
+  if (!track) return;
+
+  track.enabled = !track.enabled;
 
   const icon = micButton.querySelector("i");
-  icon.className = t.enabled ? "fas fa-microphone" : "fas fa-microphone-slash";
-  micButton.classList.toggle("muted", !t.enabled);
+  icon.className = track.enabled
+    ? "fas fa-microphone"
+    : "fas fa-microphone-slash";
+
+  micButton.classList.toggle("muted", !track.enabled);
 }
 
 function toggleCamera() {
-  const t = localStream.getVideoTracks()[0];
-  if (!t) return;
-  t.enabled = !t.enabled;
+  const track = localStream.getVideoTracks()[0];
+  if (!track) return;
+
+  track.enabled = !track.enabled;
 
   const icon = cameraButton.querySelector("i");
-  icon.className = t.enabled ? "fas fa-video" : "fas fa-video-slash";
-  cameraButton.classList.toggle("muted", !t.enabled);
+  icon.className = track.enabled
+    ? "fas fa-video"
+    : "fas fa-video-slash";
+
+  cameraButton.classList.toggle("muted", !track.enabled);
 }
 
 async function toggleScreenShare() {
   try {
     if (!isScreenSharing) {
-      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+
       const videoTrack = screenStream.getVideoTracks()[0];
 
       Object.values(peerConnections).forEach((pc) => {
@@ -252,13 +301,16 @@ async function toggleScreenShare() {
     } else {
       stopScreenSharing();
     }
-  } catch (e) {
-    alert("Screen share failed: " + e.message);
+  } catch (error) {
+    alert("Screen share failed: " + error.message);
   }
 }
 
 function stopScreenSharing() {
-  if (screenStream) screenStream.getTracks().forEach((t) => t.stop());
+  if (screenStream) {
+    screenStream.getTracks().forEach((track) => track.stop());
+  }
+
   screenStream = null;
 
   const videoTrack = localStream.getVideoTracks()[0];
@@ -273,34 +325,38 @@ function stopScreenSharing() {
 }
 
 function endCall() {
+  if (isRecording) stopRecording();
   Object.values(peerConnections).forEach((pc) => pc.close());
   peerConnections = {};
 
-  localStream?.getTracks().forEach((t) => t.stop());
-  screenStream?.getTracks().forEach((t) => t.stop());
+  localStream?.getTracks().forEach((track) => track.stop());
+  screenStream?.getTracks().forEach((track) => track.stop());
 
   socket.emit("leave-room");
   window.location.reload();
 }
 
-/* Chat + emoji + reactions */
+/* Chat + emoji picker only */
 const EMOJIS = [
-  "😀","😁","😂","🤣","😊","😍","😘","😎",
-  "🙂","😉","😅","😆","😭","😡","😮","😴",
-  "👍","👎","👏","🙏","🔥","💯","❤️","🎵",
-  "🎸","🎤","🥁","🎧","🎶","✨","⭐","✅"
+  "😀", "😁", "😂", "🤣", "😊", "😍", "😘", "😎",
+  "🙂", "😉", "😅", "😆", "😭", "😡", "😮", "😴",
+  "👍", "👎", "👏", "🙏", "🔥", "💯", "❤️", "🎵",
+  "🎸", "🎤", "🥁", "🎧", "🎶", "✨", "⭐", "✅"
 ];
 
 function buildEmojiPicker() {
   emojiGrid.innerHTML = "";
-  EMOJIS.forEach((e) => {
+
+  EMOJIS.forEach((emoji) => {
     const item = document.createElement("div");
     item.className = "emoji-item";
-    item.textContent = e;
+    item.textContent = emoji;
+
     item.onclick = () => {
-      messageInput.value += e;
+      messageInput.value += emoji;
       messageInput.focus();
     };
+
     emojiGrid.appendChild(item);
   });
 }
@@ -309,14 +365,17 @@ function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
 
-  const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
+  const id = crypto.randomUUID
+    ? crypto.randomUUID()
+    : String(Date.now()) + Math.random();
+
   socket.emit("send-message", { id, text });
 
   displayMessage({
     id,
     user: username + (isHost ? " (Host)" : ""),
     text,
-    senderId: socket.id
+    senderId: socket.id,
   });
 
   messageInput.value = "";
@@ -327,7 +386,9 @@ function displayMessage(data) {
   msg.className = "message";
   msg.dataset.msgid = data.id;
 
-  msg.classList.add(data.senderId === socket.id ? "my-message" : "receiver-message");
+  msg.classList.add(
+    data.senderId === socket.id ? "my-message" : "receiver-message"
+  );
 
   const sender = document.createElement("div");
   sender.className = "sender-name";
@@ -339,32 +400,17 @@ function displayMessage(data) {
 
   const time = document.createElement("div");
   time.className = "message-time";
-  time.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-  const reactions = document.createElement("div");
-  reactions.className = "reactions";
-
-  ["👍","❤️","😂","😮","😢"].forEach((emo) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "react-btn";
-    btn.innerHTML = `<span>${emo}</span> <span class="react-count" data-emo="${emo}">0</span>`;
-    btn.onclick = () => socket.emit("reaction", { messageId: data.id, emoji: emo });
-    reactions.appendChild(btn);
+  time.textContent = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 
   msg.appendChild(sender);
   msg.appendChild(body);
   msg.appendChild(time);
-  msg.appendChild(reactions);
 
   chatbox.appendChild(msg);
   chatbox.scrollTop = chatbox.scrollHeight;
-}
-
-function applyReactionUpdate({ messageId, emoji, count }) {
-  const el = document.querySelector(`.message[data-msgid="${messageId}"] .react-count[data-emo="${emoji}"]`);
-  if (el) el.textContent = String(count);
 }
 
 /* Participants */
@@ -385,19 +431,210 @@ function updateParticipantsList() {
 
   Object.keys(peerConnections).forEach((id) => {
     if (!peerConnections[id]) return;
+    const peerName = peerUsernames[id] || "User";
+
     const item = document.createElement("div");
     item.className = "participant-item";
+    item.id = `participant-${id}`;
     item.innerHTML = `
       <div class="participant-avatar"><i class="fas fa-user"></i></div>
       <div class="participant-info">
-        <div class="participant-name">${peerUsernames[id] || "User"}</div>
+        <div class="participant-name">${peerName}</div>
         <div class="participant-role">Participant</div>
       </div>
+      ${isHost ? `<button class="kick-btn" onclick="kickUser('${id}', '${peerName}')" title="Kick"><i class="fas fa-user-slash"></i></button>` : ""}
     `;
     list.appendChild(item);
   });
 
-  document.getElementById("participant-count").textContent = Object.keys(peerConnections).length + 1;
+  document.getElementById("participant-count").textContent =
+    Object.keys(peerConnections).length + 1;
+}
+
+/* ====== RECORDING ====== */
+function toggleRecording() {
+  if (!isRecording) {
+    startRecording();
+  } else {
+    stopRecording();
+  }
+}
+
+function startRecording() {
+  try {
+    // Capture the entire video grid area if possible, otherwise just local stream
+    const streamToRecord = screenStream || localStream;
+    const options = { mimeType: "video/webm;codecs=vp9,opus" };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options.mimeType = "video/webm";
+    }
+
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(streamToRecord, options);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PeerMeet-${roomId}-${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      recordedChunks = [];
+    };
+
+    mediaRecorder.start(1000);
+    isRecording = true;
+
+    const btn = document.getElementById("recordButton");
+    btn.classList.add("recording");
+    btn.querySelector("i").className = "fas fa-stop-circle";
+    btn.querySelector(".tooltip").textContent = "Stop Recording";
+    document.getElementById("recording-indicator").style.display = "flex";
+
+    displaySystemMessage("Recording started.");
+  } catch (err) {
+    alert("Recording failed: " + err.message);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+
+    const btn = document.getElementById("recordButton");
+    btn.classList.remove("recording");
+    btn.querySelector("i").className = "fas fa-circle";
+    btn.querySelector(".tooltip").textContent = "Record";
+    document.getElementById("recording-indicator").style.display = "none";
+
+    displaySystemMessage("Recording saved to your downloads.");
+  }
+}
+
+/* ====== RAISE HAND ====== */
+function raiseHand() {
+  if (!roomId) return;
+  handRaised = !handRaised;
+
+  const btn = document.getElementById("raiseHandButton");
+  btn.classList.toggle("hand-raised", handRaised);
+  btn.querySelector(".tooltip").textContent = handRaised ? "Lower Hand" : "Raise Hand";
+
+  if (handRaised) {
+    socket.emit("raise-hand");
+    displaySystemMessage("You raised your hand ✋");
+  } else {
+    displaySystemMessage("You lowered your hand.");
+  }
+}
+
+/* ====== HOST CONTROLS ====== */
+function muteAll() {
+  if (!isHost) return;
+  socket.emit("mute-all");
+  displaySystemMessage("You muted all participants.");
+}
+
+function kickUser(userId, userName) {
+  if (!isHost) return;
+  if (confirm(`Kick ${userName} from the meeting?`)) {
+    socket.emit("kick-user", userId);
+  }
+}
+
+function endMeetingForAll() {
+  if (!isHost) return;
+  if (confirm("End the meeting for everyone?")) {
+    socket.emit("end-meeting");
+  }
+}
+
+/* ====== FILE SHARING ====== */
+function sendFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    alert("File too large. Max size is 5MB.");
+    input.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    const payload = {
+      id,
+      fileName: file.name,
+      fileType: file.type,
+      fileData: e.target.result,
+    };
+
+    socket.emit("send-file", payload);
+
+    displayFileMessage({
+      id,
+      user: username + (isHost ? " (Host)" : ""),
+      senderId: socket.id,
+      fileName: file.name,
+      fileType: file.type,
+      fileData: e.target.result,
+    });
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function displayFileMessage(data) {
+  const msg = document.createElement("div");
+  msg.className = "message " + (data.senderId === socket.id ? "my-message" : "receiver-message");
+  msg.dataset.msgid = data.id;
+
+  const sender = document.createElement("div");
+  sender.className = "sender-name";
+  sender.textContent = data.user;
+
+  const isImage = data.fileType && data.fileType.startsWith("image/");
+
+  let body;
+  if (isImage) {
+    body = document.createElement("div");
+    const img = document.createElement("img");
+    img.src = data.fileData;
+    img.className = "chat-image";
+    img.alt = data.fileName;
+    body.appendChild(img);
+  } else {
+    body = document.createElement("a");
+    body.className = "file-attachment";
+    body.href = data.fileData;
+    body.download = data.fileName;
+    body.innerHTML = `<i class="fas fa-file-download"></i> ${data.fileName}`;
+  }
+
+  const time = document.createElement("div");
+  time.className = "message-time";
+  time.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  msg.appendChild(sender);
+  msg.appendChild(body);
+  msg.appendChild(time);
+  chatbox.appendChild(msg);
+  chatbox.scrollTop = chatbox.scrollHeight;
+}
+
+/* ====== SYSTEM MESSAGE ====== */
+function displaySystemMessage(text) {
+  const el = document.createElement("div");
+  el.className = "system-message";
+  el.textContent = text;
+  chatbox.appendChild(el);
+  chatbox.scrollTop = chatbox.scrollHeight;
 }
 
 /* Socket handlers */
@@ -413,18 +650,25 @@ socket.on("user-connected", async (userId, userName) => {
 
 socket.on("room-users", (users) => {
   isHost = users.length === 0;
-  document.getElementById("user-role").textContent = isHost ? "Host" : "Participant";
+  document.getElementById("user-role").textContent = isHost
+    ? "Host"
+    : "Participant";
 
-  users.forEach((u) => {
-    peerUsernames[u.id] = u.username;
-    createPeerConnection(u.id);
+  // Show/hide host controls panel
+  document.getElementById("host-controls").style.display = isHost ? "flex" : "none";
+
+  users.forEach((user) => {
+    peerUsernames[user.id] = user.username;
+    createPeerConnection(user.id);
   });
+
   updateParticipantsList();
 });
 
 socket.on("offer", async (offer, senderId) => {
   const pc = peerConnections[senderId] || createPeerConnection(senderId);
   await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
   socket.emit("answer", answer, senderId);
@@ -432,12 +676,16 @@ socket.on("offer", async (offer, senderId) => {
 
 socket.on("answer", async (answer, senderId) => {
   const pc = peerConnections[senderId];
-  if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  if (pc) {
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  }
 });
 
 socket.on("ice-candidate", async (candidate, senderId) => {
   const pc = peerConnections[senderId];
-  if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  if (pc) {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  }
 });
 
 socket.on("user-disconnected", (userId, userName) => {
@@ -449,7 +697,7 @@ socket.on("user-disconnected", (userId, userName) => {
     id: "sys-" + Date.now(),
     user: "System",
     text: `${userName} has left the room`,
-    senderId: "system"
+    senderId: "system",
   });
 
   updateParticipantsList();
@@ -457,7 +705,10 @@ socket.on("user-disconnected", (userId, userName) => {
 
 socket.on("receive-message", (data) => {
   displayMessage(data);
-  if (!chatPanel.classList.contains("active")) addUnread();
+
+  if (!chatPanel.classList.contains("active")) {
+    addUnread();
+  }
 });
 
 socket.on("typing", (data) => {
@@ -465,8 +716,48 @@ socket.on("typing", (data) => {
   typingIndicator.textContent = data.isTyping ? `${data.user} is typing...` : "";
 });
 
-socket.on("reaction-update", (payload) => {
-  applyReactionUpdate(payload);
+// ✅ Raise hand notification
+socket.on("user-raised-hand", ({ userId, username: uname }) => {
+  displaySystemMessage(`✋ ${uname} raised their hand`);
+  const participantEl = document.getElementById(`participant-${userId}`);
+  if (participantEl) {
+    const nameEl = participantEl.querySelector(".participant-name");
+    if (nameEl && !nameEl.textContent.includes("✋")) {
+      nameEl.textContent += " ✋";
+    }
+  }
+});
+
+// ✅ Mute requested by host
+socket.on("mute-requested", () => {
+  const track = localStream?.getAudioTracks()[0];
+  if (track && track.enabled) {
+    track.enabled = false;
+    const icon = document.getElementById("micButton").querySelector("i");
+    icon.className = "fas fa-microphone-slash";
+    document.getElementById("micButton").classList.add("muted");
+    displaySystemMessage("The host muted you.");
+  }
+});
+
+// ✅ Kicked by host
+socket.on("kicked", () => {
+  alert("You were removed from the meeting by the host.");
+  endCall();
+});
+
+// ✅ Meeting ended by host
+socket.on("meeting-ended", () => {
+  alert("The host ended the meeting.");
+  endCall();
+});
+
+// ✅ Receive file
+socket.on("receive-file", (data) => {
+  displayFileMessage(data);
+  if (!chatPanel.classList.contains("active")) {
+    addUnread();
+  }
 });
 
 /* Auto join from invite link */
@@ -475,6 +766,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const params = new URLSearchParams(window.location.search);
   const urlRoom = params.get("room");
+
   if (urlRoom) {
     document.getElementById("room").value = urlRoom;
     joinRoom();
