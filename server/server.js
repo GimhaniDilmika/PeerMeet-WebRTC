@@ -1,18 +1,36 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 
+// ✅ Trust proxy — required for Render, Railway, Heroku etc.
+app.set("trust proxy", 1);
+
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: false,
+  },
   transports: ["websocket", "polling"],
   pingTimeout: 60000,
   pingInterval: 25000,
+  maxHttpBufferSize: 10e6, // 10MB for file sharing
 });
 
-app.use(express.static("public"));
+// ✅ Serve static files from /public (works for both dev and production)
+app.use(express.static(path.join(__dirname, "../public")));
+
+// ✅ Health check endpoint (Render needs this)
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
+// ✅ Fallback — serve index.html for any unmatched route
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/index.html"));
+});
 
 const rooms = {};
 // ✅ store reactions per room: roomsReactions[roomId][messageId] = { "👍": 2, "❤️": 1 ... }
@@ -181,5 +199,8 @@ io.on("connection", (socket) => {
   socket.on("disconnect", handleDisconnect);
 });
 
+// ✅ Use process.env.PORT for Render/Heroku/Railway; fallback to 5173 locally
 const PORT = process.env.PORT || 5173;
-server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+server.listen(PORT, "0.0.0.0", () =>
+  console.log(`✅ Server running on http://localhost:${PORT}`)
+);
